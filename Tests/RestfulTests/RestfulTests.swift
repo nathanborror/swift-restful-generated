@@ -48,6 +48,71 @@ struct RestfulTests {
     }
 }
 
+private let OPENAI_API_KEY: String? = ProcessInfo.processInfo.environment["OPENAI_API_KEY"]
+
+@Suite("OpenAI Tests", .enabled(if: OPENAI_API_KEY?.isEmpty == false))
+struct RestfulOpenAITests {
+
+    @Test("Basic response")
+    func basicResponse() async throws {
+        let session = RestfulSession()
+
+        let response = try await session.request(
+            url: "https://api.openai.com/v1/responses",
+            method: "POST",
+            body: [
+                "model": "gpt-4o-mini",
+                "input": "hi",
+            ],
+            headers: [
+                "Authorization": "Bearer \(OPENAI_API_KEY!)",
+                "Content-Type": "application/json",
+            ]
+        )
+
+        #expect(response[keyPath: "output.0.content.0.text"] != "")
+    }
+}
+
+private let ANTHROPIC_API_KEY: String? = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
+
+@Suite("Anthropic Tests", .enabled(if: ANTHROPIC_API_KEY?.isEmpty == false))
+struct RestfulAnthropicTests {
+
+    @Test("Basic response")
+    func basicResponse() async throws {
+        let session = RestfulSession()
+
+        do {
+            let response = try await session.request(
+                url: "https://api.anthropic.com/v1/messages",
+                method: "POST",
+                body: [
+                    "model": "claude-haiku-4-5",
+                    "max_tokens": 1024,
+                    "messages": .array([
+                        [
+                            "role": "user",
+                            "content": "Hello",
+                        ]
+                    ]),
+                ],
+                headers: [
+                    "anthropic-version": "2023-06-01",
+                    "X-Api-Key": ANTHROPIC_API_KEY!,
+                    "Content-Type": "application/json",
+                ]
+            )
+
+            #expect(response[keyPath: "output.0.content.0.text"] != "")
+        } catch let RestfulError.httpError(_, data) {
+            print(String(data: data, encoding: .utf8))
+        } catch {
+            print(error)
+        }
+    }
+}
+
 @Suite("RestfulError Tests")
 struct RestfulErrorTests {
 
