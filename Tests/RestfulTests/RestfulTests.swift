@@ -1,4 +1,5 @@
 import Foundation
+import JSONSchema
 import Testing
 
 @testable import Restful
@@ -128,5 +129,202 @@ struct RestfulRequestBuildingTests {
                 )
             }
         }
+    }
+}
+
+@Suite("Key-Path Traversal Tests")
+struct KeyPathTraversalTests {
+
+    @Test("Simple key access returns correct value")
+    func simpleKeyAccess() {
+        let response: [String: JSONValue] = [
+            "name": "John Doe",
+            "age": 30,
+        ]
+
+        #expect(response[keyPath: "name"]?.stringValue == "John Doe")
+        #expect(response[keyPath: "age"]?.intValue == 30)
+    }
+
+    @Test("Nested object access with dot notation")
+    func nestedObjectAccess() {
+        let response: [String: JSONValue] = [
+            "user": JSONValue.object([
+                "name": "Jane Doe",
+                "email": "jane@example.com",
+            ])
+        ]
+
+        #expect(response[keyPath: "user.name"]?.stringValue == "Jane Doe")
+        #expect(response[keyPath: "user.email"]?.stringValue == "jane@example.com")
+    }
+
+    @Test("Array index access with numeric indices")
+    func arrayIndexAccess() {
+        let response: [String: JSONValue] = [
+            "items": JSONValue.array([
+                "first",
+                "second",
+                "third",
+            ])
+        ]
+
+        #expect(response[keyPath: "items.0"]?.stringValue == "first")
+        #expect(response[keyPath: "items.1"]?.stringValue == "second")
+        #expect(response[keyPath: "items.2"]?.stringValue == "third")
+    }
+
+    @Test("Mixed nesting with objects and arrays")
+    func mixedNesting() {
+        let response: [String: JSONValue] = [
+            "data": JSONValue.object([
+                "results": JSONValue.array([
+                    JSONValue.object([
+                        "id": 1,
+                        "title": "First Item",
+                    ]),
+                    JSONValue.object([
+                        "id": 2,
+                        "title": "Second Item",
+                    ]),
+                ])
+            ])
+        ]
+
+        #expect(response[keyPath: "data.results.0.id"]?.intValue == 1)
+        #expect(response[keyPath: "data.results.0.title"]?.stringValue == "First Item")
+        #expect(response[keyPath: "data.results.1.id"]?.intValue == 2)
+        #expect(response[keyPath: "data.results.1.title"]?.stringValue == "Second Item")
+    }
+
+    @Test("Deep nesting traversal")
+    func deepNesting() {
+        let response: [String: JSONValue] = [
+            "output": JSONValue.object([
+                "reasoning": JSONValue.object([
+                    "summary": "This is a summary"
+                ])
+            ])
+        ]
+
+        #expect(response[keyPath: "output.reasoning.summary"]?.stringValue == "This is a summary")
+    }
+
+    @Test("Array of objects with nested access")
+    func arrayOfObjects() {
+        let response: [String: JSONValue] = [
+            "users": JSONValue.array([
+                JSONValue.object([
+                    "name": "Alice",
+                    "profile": JSONValue.object([
+                        "age": 25
+                    ]),
+                ]),
+                JSONValue.object([
+                    "name": "Bob",
+                    "profile": JSONValue.object([
+                        "age": 30
+                    ]),
+                ]),
+            ])
+        ]
+
+        #expect(response[keyPath: "users.0.name"]?.stringValue == "Alice")
+        #expect(response[keyPath: "users.0.profile.age"]?.intValue == 25)
+        #expect(response[keyPath: "users.1.name"]?.stringValue == "Bob")
+        #expect(response[keyPath: "users.1.profile.age"]?.intValue == 30)
+    }
+
+    @Test("Non-existent key returns nil")
+    func nonExistentKey() {
+        let response: [String: JSONValue] = [
+            "name": "John Doe"
+        ]
+
+        #expect(response[keyPath: "email"] == nil)
+        #expect(response[keyPath: "user.name"] == nil)
+    }
+
+    @Test("Out of bounds array index returns nil")
+    func outOfBoundsArrayIndex() {
+        let response: [String: JSONValue] = [
+            "items": JSONValue.array([
+                "first",
+                "second",
+            ])
+        ]
+
+        #expect(response[keyPath: "items.2"] == nil)
+        #expect(response[keyPath: "items.10"] == nil)
+        #expect(response[keyPath: "items.-1"] == nil)
+    }
+
+    @Test("Invalid path returns nil")
+    func invalidPath() {
+        let response: [String: JSONValue] = [
+            "name": "John Doe"
+        ]
+
+        #expect(response[keyPath: ""] == nil)
+        #expect(response[keyPath: "name.invalid"] == nil)
+    }
+
+    @Test("Accessing array index on non-array returns nil")
+    func arrayIndexOnNonArray() {
+        let response: [String: JSONValue] = [
+            "user": JSONValue.object([
+                "name": "John Doe"
+            ])
+        ]
+
+        #expect(response[keyPath: "user.0"] == nil)
+    }
+
+    @Test("Accessing object key on non-object returns nil")
+    func objectKeyOnNonObject() {
+        let response: [String: JSONValue] = [
+            "items": JSONValue.array(["first", "second"])
+        ]
+
+        #expect(response[keyPath: "items.name"] == nil)
+    }
+
+    @Test("Complex real-world example")
+    func complexRealWorld() {
+        let response: [String: JSONValue] = [
+            "status": "success",
+            "data": JSONValue.object([
+                "user": JSONValue.object([
+                    "id": 123,
+                    "profile": JSONValue.object([
+                        "name": "Alice Smith",
+                        "settings": JSONValue.object([
+                            "theme": "dark"
+                        ]),
+                    ]),
+                ]),
+                "posts": JSONValue.array([
+                    JSONValue.object([
+                        "id": 1,
+                        "content": "First post",
+                        "tags": JSONValue.array(["swift", "api"]),
+                    ]),
+                    JSONValue.object([
+                        "id": 2,
+                        "content": "Second post",
+                        "tags": JSONValue.array(["rest", "http"]),
+                    ]),
+                ]),
+            ]),
+        ]
+
+        #expect(response[keyPath: "status"]?.stringValue == "success")
+        #expect(response[keyPath: "data.user.id"]?.intValue == 123)
+        #expect(response[keyPath: "data.user.profile.name"]?.stringValue == "Alice Smith")
+        #expect(response[keyPath: "data.user.profile.settings.theme"]?.stringValue == "dark")
+        #expect(response[keyPath: "data.posts.0.id"]?.intValue == 1)
+        #expect(response[keyPath: "data.posts.0.content"]?.stringValue == "First post")
+        #expect(response[keyPath: "data.posts.0.tags.0"]?.stringValue == "swift")
+        #expect(response[keyPath: "data.posts.1.tags.1"]?.stringValue == "http")
     }
 }

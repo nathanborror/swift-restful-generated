@@ -48,16 +48,18 @@ func authenticatedRequest() async throws {
     print("Protected data:", response)
 }
 
-/// Example 4: OpenAI API Request (from README)
+/// Example 4: OpenAI API Request with Key-Path Traversal
 func openAIRequest() async throws {
     let session = RestfulSession()
 
     let response = try await session.request(
-        url: "https://api.openai.com/v1/responses",
+        url: "https://api.openai.com/v1/chat/completions",
         method: "POST",
         body: [
             "model": "gpt-4o-mini",
-            "input": "Hello, World!",
+            "messages": JSONValue.array([
+                JSONValue.object(["role": "user", "content": "Hello, World!"])
+            ]),
         ],
         headers: [
             "Authorization": "Bearer API_TOKEN",
@@ -65,7 +67,14 @@ func openAIRequest() async throws {
         ]
     )
 
-    print(response["data"] ?? "No data")
+    // Use key-path traversal for easy nested access
+    if let content = response[keyPath: "choices.0.message.content"]?.stringValue {
+        print("Assistant: \(content)")
+    }
+
+    if let model = response[keyPath: "model"]?.stringValue {
+        print("Model: \(model)")
+    }
 }
 
 // MARK: - Error Handling Examples
@@ -174,10 +183,16 @@ func fetchGitHubUser(username: String) async throws {
         ]
     )
 
+    // Traditional access
     if let name = response["name"]?.stringValue,
         let publicRepos = response["public_repos"]?.intValue
     {
         print("\(name) has \(publicRepos) public repositories")
+    }
+
+    // Or using key-path (same result)
+    if let followers = response[keyPath: "followers"]?.intValue {
+        print("Followers: \(followers)")
     }
 }
 
@@ -271,9 +286,103 @@ func complexBodyRequest() async throws {
     print("Order created:", response)
 }
 
+// MARK: - Key-Path Traversal Examples
+
+/// Example 14: Simple Key-Path Access
+func simpleKeyPathAccess() async throws {
+    let session = RestfulSession()
+
+    let response = try await session.request(
+        url: "https://api.example.com/users/1",
+        method: "GET"
+    )
+
+    // Simple nested access
+    if let email = response[keyPath: "profile.email"]?.stringValue {
+        print("Email: \(email)")
+    }
+}
+
+/// Example 15: Array Access with Key-Path
+func arrayKeyPathAccess() async throws {
+    let session = RestfulSession()
+
+    let response = try await session.request(
+        url: "https://api.example.com/posts",
+        method: "GET"
+    )
+
+    // Access first item in array
+    if let firstTitle = response[keyPath: "posts.0.title"]?.stringValue {
+        print("First post: \(firstTitle)")
+    }
+
+    // Access nested array element
+    if let firstTag = response[keyPath: "posts.0.tags.0"]?.stringValue {
+        print("First tag: \(firstTag)")
+    }
+}
+
+/// Example 16: Deep Nesting with Key-Path
+func deepNestedKeyPath() async throws {
+    let session = RestfulSession()
+
+    let response = try await session.request(
+        url: "https://api.example.com/data",
+        method: "GET"
+    )
+
+    // Without key-path (verbose)
+    if let data = response["data"]?.objectValue,
+        let user = data["user"]?.objectValue,
+        let profile = user["profile"]?.objectValue,
+        let settings = profile["settings"]?.objectValue,
+        let theme = settings["theme"]?.stringValue
+    {
+        print("Theme (traditional): \(theme)")
+    }
+
+    // With key-path (concise)
+    if let theme = response[keyPath: "data.user.profile.settings.theme"]?.stringValue {
+        print("Theme (key-path): \(theme)")
+    }
+}
+
+/// Example 17: Complex API Response with Key-Path
+func complexAPIResponse() async throws {
+    let session = RestfulSession()
+
+    let response = try await session.request(
+        url: "https://api.example.com/search",
+        method: "POST",
+        body: [
+            "query": "swift programming",
+            "limit": 10,
+        ]
+    )
+
+    // Access multiple nested values easily
+    if let totalResults = response[keyPath: "meta.total"]?.intValue {
+        print("Total results: \(totalResults)")
+    }
+
+    if let firstResultTitle = response[keyPath: "results.0.title"]?.stringValue {
+        print("Top result: \(firstResultTitle)")
+    }
+
+    if let firstResultScore = response[keyPath: "results.0.score"]?.doubleValue {
+        print("Relevance score: \(firstResultScore)")
+    }
+
+    // Access author of first result
+    if let authorName = response[keyPath: "results.0.author.name"]?.stringValue {
+        print("Author: \(authorName)")
+    }
+}
+
 // MARK: - Helper Functions
 
-/// Example 14: Wrapper Function for API Calls
+/// Example 18: Wrapper Function for API Calls
 func callAPI<T>(
     url: String,
     method: String = "GET",

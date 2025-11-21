@@ -9,6 +9,7 @@ An API agnostic, lightweight Swift library for making RESTful HTTP requests with
 - ✅ Async/await support
 - ✅ Automatic JSON serialization/deserialization using `JSONValue`
 - ✅ Type-safe JSON handling with the JSONSchema library
+- ✅ Key-path traversal for easy nested value access
 - ✅ Custom headers support
 - ✅ Comprehensive error handling
 - ✅ Custom URLSession configuration
@@ -66,12 +67,25 @@ let response = try await session.request(
     method: "GET"
 )
 
+// Traditional access
 if let name = response["name"]?.stringValue {
     print("User name: \(name)")
+}
+
+// Or using key-path for nested values
+if let email = response[keyPath: "profile.email"]?.stringValue {
+    print("Email: \(email)")
 }
 ```
 
 ### POST Request with Body
+</text>
+
+<old_text line=88>
+print(response["data"])
+```
+
+### PUT Request to Update Resource
 
 ```swift
 let session = RestfulSession()
@@ -112,11 +126,13 @@ import Restful
 let session = RestfulSession()
 
 let response = try await session.request(
-    url: "https://api.openai.com/v1/responses",
+    url: "https://api.openai.com/v1/chat/completions",
     method: "POST",
     body: [
         "model": "gpt-4o-mini",
-        "input": "Hello, World!"
+        "messages": JSONValue.array([
+            JSONValue.object(["role": "user", "content": "Hello, World!"])
+        ])
     ],
     headers: [
         "Authorization": "Bearer API_TOKEN",
@@ -124,7 +140,14 @@ let response = try await session.request(
     ]
 )
 
-print(response["data"])
+// Access nested response data using key-path traversal
+if let content = response[keyPath: "choices.0.message.content"]?.stringValue {
+    print("Assistant: \(content)")
+}
+
+if let model = response[keyPath: "model"]?.stringValue {
+    print("Model: \(model)")
+}
 ```
 
 ### PUT Request to Update Resource
@@ -334,6 +357,56 @@ if let items = response["items"]?.arrayValue {
 // Access nested objects
 if let user = response["user"]?.objectValue {
     print("User name: \(user["name"]?.stringValue ?? "Unknown")")
+}
+```
+
+### Key-Path Traversal
+
+For easier access to nested values, use key-path notation with dot separators and numeric array indices:
+
+```swift
+let response = try await session.request(url: "...", method: "GET")
+
+// Simple nested object access
+if let name = response[keyPath: "user.name"]?.stringValue {
+    print("Name: \(name)")
+}
+
+// Deep nesting
+if let summary = response[keyPath: "output.reasoning.summary"]?.stringValue {
+    print("Summary: \(summary)")
+}
+
+// Array access with numeric indices
+if let firstItem = response[keyPath: "items.0"]?.stringValue {
+    print("First item: \(firstItem)")
+}
+
+// Mixed nesting with objects and arrays
+if let title = response[keyPath: "data.results.0.title"]?.stringValue {
+    print("First result title: \(title)")
+}
+
+// Complex nested structures
+if let theme = response[keyPath: "user.profile.settings.theme"]?.stringValue {
+    print("Theme: \(theme)")
+}
+```
+
+This is much simpler than chaining optional access:
+
+```swift
+// Without key-path (verbose)
+if let user = response["user"]?.objectValue,
+   let profile = user["profile"]?.objectValue,
+   let settings = profile["settings"]?.objectValue,
+   let theme = settings["theme"]?.stringValue {
+    print("Theme: \(theme)")
+}
+
+// With key-path (concise)
+if let theme = response[keyPath: "user.profile.settings.theme"]?.stringValue {
+    print("Theme: \(theme)")
 }
 ```
 

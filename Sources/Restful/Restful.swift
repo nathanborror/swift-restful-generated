@@ -104,3 +104,57 @@ public enum RestfulError: Error, LocalizedError {
         }
     }
 }
+
+// MARK: - Key-Path Traversal Extension
+
+extension Dictionary where Key == String, Value == JSONValue {
+    /// Access nested JSON values using dot notation and array indices
+    ///
+    /// Example usage:
+    /// ```
+    /// response["user.name"]           // Access nested object
+    /// response["items.0.title"]       // Access first array element
+    /// response["data.results.0.id"]   // Mixed nesting
+    /// ```
+    ///
+    /// - Parameter keyPath: A dot-separated path to the desired value.
+    ///   Use numeric indices for array access (e.g., "items.0")
+    /// - Returns: The JSONValue at the specified path, or nil if not found
+    public subscript(keyPath keyPath: String) -> JSONValue? {
+        let components = keyPath.split(separator: ".").map(String.init)
+        var current: JSONValue? = nil
+
+        // Start with the root dictionary
+        guard let firstKey = components.first else {
+            return nil
+        }
+
+        current = self[firstKey]
+
+        // Traverse remaining components
+        for component in components.dropFirst() {
+            guard let currentValue = current else {
+                return nil
+            }
+
+            // Check if component is a numeric index for array access
+            if let index = Int(component) {
+                guard let array = currentValue.arrayValue,
+                    index >= 0,
+                    index < array.count
+                else {
+                    return nil
+                }
+                current = array[index]
+            } else {
+                // Object key access
+                guard let object = currentValue.objectValue else {
+                    return nil
+                }
+                current = object[component]
+            }
+        }
+
+        return current
+    }
+}
