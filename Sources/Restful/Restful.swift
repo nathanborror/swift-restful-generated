@@ -64,7 +64,13 @@ public class RestfulSession {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw RestfulError.httpError(statusCode: httpResponse.statusCode, data: data)
+            // Try to decode error response as JSON
+            if let jsonError = try? JSONDecoder().decode([String: JSONValue].self, from: data) {
+                throw RestfulError.httpErrorJSON(
+                    statusCode: httpResponse.statusCode, data: jsonError)
+            } else {
+                throw RestfulError.httpError(statusCode: httpResponse.statusCode, data: data)
+            }
         }
 
         // Parse JSON response
@@ -85,6 +91,7 @@ public enum RestfulError: Error, LocalizedError {
     case invalidResponse
     case invalidResponseFormat
     case httpError(statusCode: Int, data: Data)
+    case httpErrorJSON(statusCode: Int, data: [String: JSONValue])
     case decodingError(Error)
 
     public var errorDescription: String? {
@@ -98,6 +105,8 @@ public enum RestfulError: Error, LocalizedError {
         case .invalidResponseFormat:
             return "Response is not a valid JSON object"
         case .httpError(let statusCode, _):
+            return "HTTP error with status code: \(statusCode)"
+        case .httpErrorJSON(let statusCode, _):
             return "HTTP error with status code: \(statusCode)"
         case .decodingError(let error):
             return "Failed to decode response: \(error.localizedDescription)"

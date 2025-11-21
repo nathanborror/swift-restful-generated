@@ -204,6 +204,15 @@ do {
         print("Server message: \(errorMessage)")
     }
     
+} catch RestfulError.httpErrorJSON(let statusCode, let errorData) {
+    print("HTTP error \(statusCode)")
+    if let message = errorData["message"]?.stringValue {
+        print("Error message: \(message)")
+    }
+    if let code = errorData["error.code"]?.stringValue {
+        print("Error code: \(code)")
+    }
+    
 } catch RestfulError.invalidResponseFormat {
     print("Response is not valid JSON object")
     
@@ -227,7 +236,8 @@ do {
 - `invalidBody(Error)` - The request body cannot be serialized to JSON
 - `invalidResponse` - The response is not a valid HTTP response
 - `invalidResponseFormat` - The response is not a valid JSON object (e.g., array instead of object)
-- `httpError(statusCode: Int, data: Data)` - The server returned an error status code (not 2xx)
+- `httpError(statusCode: Int, data: Data)` - The server returned an error status code (not 2xx) with non-JSON data
+- `httpErrorJSON(statusCode: Int, data: [String: JSONValue])` - The server returned an error status code (not 2xx) with JSON data
 - `decodingError(Error)` - Failed to decode the response JSON
 
 ## Advanced Usage

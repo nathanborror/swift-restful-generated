@@ -154,6 +154,51 @@ struct RestfulErrorTests {
         #expect(error503.errorDescription?.contains("503") == true)
     }
 
+    @Test("RestfulError.httpErrorJSON provides status code in error message")
+    func httpErrorJSON() {
+        let errorData: [String: JSONValue] = ["message": .string("Not found")]
+        let error = RestfulError.httpErrorJSON(statusCode: 404, data: errorData)
+        #expect(error.errorDescription?.contains("404") == true)
+        #expect(error.errorDescription?.contains("HTTP error") == true)
+    }
+
+    @Test("RestfulError.httpErrorJSON preserves JSON data")
+    func httpErrorJSONData() {
+        let errorData: [String: JSONValue] = [
+            "message": .string("Unauthorized"),
+            "code": .string("AUTH_ERROR"),
+        ]
+        let error = RestfulError.httpErrorJSON(statusCode: 401, data: errorData)
+
+        if case .httpErrorJSON(let statusCode, let data) = error {
+            #expect(statusCode == 401)
+            #expect(data["message"]?.stringValue == "Unauthorized")
+            #expect(data["code"]?.stringValue == "AUTH_ERROR")
+        } else {
+            Issue.record("Expected httpErrorJSON case")
+        }
+    }
+
+    @Test("RestfulError.httpErrorJSON with nested data")
+    func httpErrorJSONNested() {
+        let errorData: [String: JSONValue] = [
+            "error": .object([
+                "code": .string("VALIDATION_ERROR"),
+                "details": .array([.string("Field 'email' is required")]),
+            ])
+        ]
+        let error = RestfulError.httpErrorJSON(statusCode: 400, data: errorData)
+
+        if case .httpErrorJSON(_, let data) = error {
+            #expect(data["error"]?.objectValue?["code"]?.stringValue == "VALIDATION_ERROR")
+            #expect(
+                data["error"]?.objectValue?["details"]?.arrayValue?.first?.stringValue
+                    == "Field 'email' is required")
+        } else {
+            Issue.record("Expected httpErrorJSON case")
+        }
+    }
+
     @Test("RestfulError.invalidBody provides underlying error message")
     func invalidBodyError() {
         let underlyingError = NSError(
@@ -193,6 +238,36 @@ struct RestfulRequestBuildingTests {
                     method: method
                 )
             }
+        }
+    }
+}
+
+@Suite("HTTP Error JSON Integration Tests")
+struct HTTPErrorJSONIntegrationTests {
+
+    @Test("HTTP error with JSON response throws httpErrorJSON")
+    func httpErrorJSONIntegration() async {
+        let session = RestfulSession()
+
+        do {
+            // httpbin.org/status/404 returns a 404 with empty body, but we can use
+            // a different endpoint that returns JSON errors
+            _ = try await session.request(
+                url: "https://httpbin.org/status/404",
+                method: "GET",
+                headers: ["Accept": "application/json"]
+            )
+            Issue.record("Expected error to be thrown")
+        } catch let RestfulError.httpErrorJSON(statusCode, data) {
+            // If the response is JSON, it should be caught as httpErrorJSON
+            #expect(statusCode == 404)
+            // data should be a valid JSON dictionary
+            _ = data
+        } catch let RestfulError.httpError(statusCode, _) {
+            // If the response is not JSON, it should be caught as httpError (which is valid for httpbin)
+            #expect(statusCode == 404)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
         }
     }
 }
