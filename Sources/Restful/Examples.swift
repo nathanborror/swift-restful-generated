@@ -1,4 +1,5 @@
 import Foundation
+import JSONSchema
 
 // MARK: - Basic Usage Examples
 
@@ -80,7 +81,7 @@ func requestWithErrorHandling() async {
         )
 
         // Process successful response
-        if let items = response["items"] as? [[String: Any]] {
+        if let items = response["items"]?.arrayValue {
             print("Found \(items.count) items")
         }
 
@@ -173,8 +174,8 @@ func fetchGitHubUser(username: String) async throws {
         ]
     )
 
-    if let name = response["name"] as? String,
-        let publicRepos = response["public_repos"] as? Int
+    if let name = response["name"]?.stringValue,
+        let publicRepos = response["public_repos"]?.intValue
     {
         print("\(name) has \(publicRepos) public repositories")
     }
@@ -188,13 +189,13 @@ func createPost(title: String, body: String) async throws {
         url: "https://jsonplaceholder.typicode.com/posts",
         method: "POST",
         body: [
-            "title": title,
-            "body": body,
+            "title": JSONValue.string(title),
+            "body": JSONValue.string(body),
             "userId": 1,
         ]
     )
 
-    if let postId = response["id"] as? Int {
+    if let postId = response["id"]?.intValue {
         print("Created post with ID: \(postId)")
     }
 }
@@ -234,7 +235,7 @@ func multipleRequests() async throws {
     )
 
     // Second request - get user's posts
-    if let userId = user["id"] as? Int {
+    if let userId = user["id"]?.intValue {
         let posts = try await session.request(
             url: "https://api.example.com/users/\(userId)/posts",
             method: "GET"
@@ -251,14 +252,14 @@ func complexBodyRequest() async throws {
         url: "https://api.example.com/orders",
         method: "POST",
         body: [
-            "customer": [
+            "customer": JSONValue.object([
                 "name": "John Doe",
                 "email": "john@example.com",
-            ] as [String: Any],
-            "items": [
-                ["product": "Widget", "quantity": 2],
-                ["product": "Gadget", "quantity": 1],
-            ] as [[String: Any]],
+            ]),
+            "items": JSONValue.array([
+                JSONValue.object(["product": "Widget", "quantity": 2]),
+                JSONValue.object(["product": "Gadget", "quantity": 1]),
+            ]),
             "total": 99.99,
             "currency": "USD",
         ],
@@ -276,9 +277,9 @@ func complexBodyRequest() async throws {
 func callAPI<T>(
     url: String,
     method: String = "GET",
-    body: [String: Any]? = nil,
+    body: [String: JSONValue]? = nil,
     headers: [String: String]? = nil,
-    transform: ([String: Any]) throws -> T
+    transform: ([String: JSONValue]) throws -> T
 ) async throws -> T {
     let session = RestfulSession()
 
@@ -298,7 +299,7 @@ func useHelperFunction() async throws {
         url: "https://api.example.com/users/1",
         method: "GET"
     ) { response in
-        guard let name = response["name"] as? String else {
+        guard let name = response["name"]?.stringValue else {
             throw NSError(domain: "ParsingError", code: 1, userInfo: nil)
         }
         return name

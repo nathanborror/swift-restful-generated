@@ -1,4 +1,5 @@
 import Foundation
+import JSONSchema
 
 /// A session for making RESTful API requests
 public class RestfulSession {
@@ -21,9 +22,9 @@ public class RestfulSession {
     public func request(
         url urlString: String,
         method: String,
-        body: [String: Any]? = nil,
+        body: [String: JSONValue]? = nil,
         headers: [String: String]? = nil
-    ) async throws -> [String: Any] {
+    ) async throws -> [String: JSONValue] {
         // Create URL
         guard let url = URL(string: urlString) else {
             throw RestfulError.invalidURL(urlString)
@@ -43,7 +44,8 @@ public class RestfulSession {
         // Set body if provided
         if let body = body {
             do {
-                request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+                let encoder = JSONEncoder()
+                request.httpBody = try encoder.encode(body)
                 // Set content-type if not already set
                 if request.value(forHTTPHeaderField: "Content-Type") == nil {
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -67,12 +69,8 @@ public class RestfulSession {
 
         // Parse JSON response
         do {
-            guard
-                let json = try JSONSerialization.jsonObject(with: data, options: [])
-                    as? [String: Any]
-            else {
-                throw RestfulError.invalidResponseFormat
-            }
+            let decoder = JSONDecoder()
+            let json = try decoder.decode([String: JSONValue].self, from: data)
             return json
         } catch {
             throw RestfulError.decodingError(error)

@@ -7,7 +7,8 @@ An API agnostic, lightweight Swift library for making RESTful HTTP requests with
 - ✅ Simple and intuitive API
 - ✅ Support for all HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.)
 - ✅ Async/await support
-- ✅ Automatic JSON serialization/deserialization
+- ✅ Automatic JSON serialization/deserialization using `JSONValue`
+- ✅ Type-safe JSON handling with the JSONSchema library
 - ✅ Custom headers support
 - ✅ Comprehensive error handling
 - ✅ Custom URLSession configuration
@@ -65,7 +66,7 @@ let response = try await session.request(
     method: "GET"
 )
 
-if let name = response["name"] as? String {
+if let name = response["name"]?.stringValue {
     print("User name: \(name)")
 }
 ```
@@ -231,14 +232,14 @@ let response = try await session.request(
     url: "https://api.example.com/orders",
     method: "POST",
     body: [
-        "customer": [
+        "customer": JSONValue.object([
             "name": "John Doe",
-            "email": "john@example.com"
-        ] as [String: Any],
-        "items": [
-            ["product": "Widget", "quantity": 2],
-            ["product": "Gadget", "quantity": 1]
-        ] as [[String: Any]],
+            "email": "john@example.com",
+        ]),
+        "items": JSONValue.array([
+            JSONValue.object(["product": "Widget", "quantity": 2]),
+            JSONValue.object(["product": "Gadget", "quantity": 1]),
+        ]),
         "total": 99.99,
         "currency": "USD"
     ],
@@ -260,12 +261,79 @@ let user = try await session.request(
 )
 
 // Second request using data from first
-if let userId = user["id"] as? Int {
+if let userId = user["id"]?.intValue {
     let posts = try await session.request(
         url: "https://api.example.com/users/\(userId)/posts",
         method: "GET"
     )
     print("User posts:", posts)
+}
+```
+
+## Working with JSONValue
+
+This library uses the `JSONValue` type from the [JSONSchema](https://github.com/mattt/JSONSchema) library to represent JSON data. This provides type-safe handling of JSON values.
+
+### Creating JSON Values
+
+`JSONValue` conforms to literal protocols, so you can use Swift literals directly:
+
+```swift
+let body: [String: JSONValue] = [
+    "name": "John Doe",        // String literal
+    "age": 30,                  // Integer literal
+    "active": true,             // Boolean literal
+    "score": 98.5              // Double literal
+]
+```
+
+For nested structures, use explicit constructors:
+
+```swift
+let body: [String: JSONValue] = [
+    "user": JSONValue.object([
+        "name": "John Doe",
+        "email": "john@example.com"
+    ]),
+    "tags": JSONValue.array(["swift", "api", "rest"])
+]
+```
+
+### Accessing JSON Values
+
+Use the type-specific properties to extract values:
+
+```swift
+let response = try await session.request(url: "...", method: "GET")
+
+// Access string values
+if let name = response["name"]?.stringValue {
+    print("Name: \(name)")
+}
+
+// Access integer values
+if let age = response["age"]?.intValue {
+    print("Age: \(age)")
+}
+
+// Access boolean values
+if let active = response["active"]?.boolValue {
+    print("Active: \(active)")
+}
+
+// Access double values
+if let score = response["score"]?.doubleValue {
+    print("Score: \(score)")
+}
+
+// Access arrays
+if let items = response["items"]?.arrayValue {
+    print("Found \(items.count) items")
+}
+
+// Access nested objects
+if let user = response["user"]?.objectValue {
+    print("User name: \(user["name"]?.stringValue ?? "Unknown")")
 }
 ```
 
@@ -289,9 +357,9 @@ Creates a new `RestfulSession` with an optional custom `URLSession`.
 func request(
     url: String,
     method: String,
-    body: [String: Any]? = nil,
+    body: [String: JSONValue]? = nil,
     headers: [String: String]? = nil
-) async throws -> [String: Any]
+) async throws -> [String: JSONValue]
 ```
 
 Makes an HTTP request and returns the JSON response as a dictionary.
@@ -302,7 +370,7 @@ Makes an HTTP request and returns the JSON response as a dictionary.
 - `body`: Optional request body as a dictionary (will be serialized to JSON)
 - `headers`: Optional HTTP headers as a dictionary
 
-**Returns:** The response as a dictionary `[String: Any]`
+**Returns:** The response as a dictionary `[String: JSONValue]`
 
 **Throws:** `RestfulError` if the request fails
 

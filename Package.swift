@@ -16,7 +16,7 @@ let package = Package(
         .package(url: "https://github.com/mattt/JSONSchema", from: "1.3.0")
     ],
     targets: [
-        .target(name: "Restful"),
+        .target(name: "Restful", dependencies: ["JSONSchema"]),
         .testTarget(name: "RestfulTests", dependencies: ["Restful"]),
     ]
 )
