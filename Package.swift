@@ -10,11 +10,11 @@ let package = Package(
         .macOS(.v15),
     ],
     products: [
-        .library(name: "Restful", targets: ["Restful"]),
+        .library(name: "Restful", targets: ["Restful"])
     ],
     dependencies: [
-        .package(url: "https://github.com/mattt/JSONSchema", from: "1.3.0"),
-    ]
+        .package(url: "https://github.com/mattt/JSONSchema", from: "1.3.0")
+    ],
     targets: [
         .target(name: "Restful"),
         .testTarget(name: "RestfulTests", dependencies: ["Restful"]),

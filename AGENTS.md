@@ -1,5 +1,10 @@
 # Project Instructions
 
+## General
+
+- Do not create extraneous docuemnts like CHANGELOG.md, IMPLEMENTATION_SUMMARY.md, or other unecessary documentation
+- Do not create example files with example code, write tests instead
+
 ## Documentation
 
 - Keep the README file up-to-date
