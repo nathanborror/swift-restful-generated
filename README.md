@@ -34,27 +34,7 @@ dependencies: [
 ]
 ```
 
-Or add it through Xcode:
-1. File > Add Package Dependencies
-2. Enter the package repository URL
-3. Select the version you want to use
-
-## Quick Start
-
-```swift
-import Restful
-
-let session = RestfulSession()
-
-let response = try await session.request(
-    url: "https://api.example.com/users",
-    method: "GET"
-)
-
-print(response)
-```
-
-## Usage Examples
+## Examples
 
 ### Basic GET Request
 
@@ -80,13 +60,6 @@ if let email = response[keyPath: "profile.email"]?.stringValue {
 ```
 
 ### POST Request with Body
-</text>
-
-<old_text line=88>
-print(response["data"])
-```
-
-### PUT Request to Update Resource
 
 ```swift
 let session = RestfulSession()
@@ -98,25 +71,14 @@ let response = try await session.request(
         "name": "John Doe",
         "email": "john@example.com",
         "age": 30
-    ]
-)
-
-print("Created user:", response)
-```
-
-### Request with Authentication Headers
-
-```swift
-let session = RestfulSession()
-
-let response = try await session.request(
-    url: "https://api.example.com/protected",
-    method: "GET",
+    ],
     headers: [
         "Authorization": "Bearer YOUR_API_TOKEN",
         "Accept": "application/json"
     ]
 )
+
+print("Created user:", response)
 ```
 
 ### OpenAI API Example
@@ -127,13 +89,11 @@ import Restful
 let session = RestfulSession()
 
 let response = try await session.request(
-    url: "https://api.openai.com/v1/chat/completions",
+    url: "https://api.openai.com/v1/responses",
     method: "POST",
     body: [
         "model": "gpt-4o-mini",
-        "messages": JSONValue.array([
-            JSONValue.object(["role": "user", "content": "Hello, World!"])
-        ])
+        "input": "hello"
     ],
     headers: [
         "Authorization": "Bearer API_TOKEN",
@@ -151,38 +111,6 @@ if let model = response[keyPath: "model"]?.stringValue {
 }
 ```
 
-### PUT Request to Update Resource
-
-```swift
-let session = RestfulSession()
-
-let response = try await session.request(
-    url: "https://api.example.com/users/123",
-    method: "PUT",
-    body: [
-        "name": "Jane Doe",
-        "email": "jane@example.com"
-    ],
-    headers: [
-        "Authorization": "Bearer YOUR_TOKEN"
-    ]
-)
-```
-
-### DELETE Request
-
-```swift
-let session = RestfulSession()
-
-let response = try await session.request(
-    url: "https://api.example.com/users/123",
-    method: "DELETE",
-    headers: [
-        "Authorization": "Bearer YOUR_TOKEN"
-    ]
-)
-```
-
 ### Streaming with Server-Sent Events (SSE)
 
 Server-sent events allow you to receive real-time updates from the server as they happen. This is perfect for streaming APIs like chat completions.
@@ -191,13 +119,11 @@ Server-sent events allow you to receive real-time updates from the server as the
 let session = RestfulSession()
 
 let stream = session.stream(
-    url: "https://api.openai.com/v1/chat/completions",
+    url: "https://api.openai.com/v1/responses",
     method: "POST",
     body: [
         "model": "gpt-4",
-        "messages": JSONValue.array([
-            JSONValue.object(["role": "user", "content": "Tell me a story"])
-        ]),
+        "input": "tell me a story",
         "stream": true
     ],
     headers: [
@@ -219,76 +145,6 @@ for try await event in stream {
         print("Event ID:", eventId)
     }
 }
-```
-
-### Processing Streaming JSON Data
-
-When streaming JSON data (like from OpenAI's API), you'll typically receive JSON strings in the event data that need to be parsed:
-
-```swift
-import JSONSchema
-
-let session = RestfulSession()
-
-let stream = session.stream(
-    url: "https://api.openai.com/v1/chat/completions",
-    method: "POST",
-    body: [
-        "model": "gpt-4",
-        "messages": JSONValue.array([
-            JSONValue.object(["role": "user", "content": "Write a poem"])
-        ]),
-        "stream": true
-    ],
-    headers: [
-        "Authorization": "Bearer YOUR_API_KEY"
-    ]
-)
-
-var fullResponse = ""
-
-for try await event in stream {
-    // Skip special "[DONE]" marker
-    if event.data == "[DONE]" {
-        break
-    }
-    
-    // Parse JSON from event data
-    if let jsonData = event.data.data(using: .utf8),
-       let decoded = try? JSONDecoder().decode([String: JSONValue].self, from: jsonData),
-       let content = decoded[keyPath: "choices.0.delta.content"]?.stringValue {
-        fullResponse += content
-        print(content, terminator: "")
-    }
-}
-
-print("\n\nComplete response:", fullResponse)
-```
-
-### Collecting All Streaming Events
-
-You can collect all events from a stream into an array:
-
-```swift
-let session = RestfulSession()
-
-let stream = session.stream(
-    url: "https://api.example.com/events",
-    method: "GET"
-)
-
-var events: [ServerSentEvent] = []
-
-for try await event in stream {
-    events.append(event)
-    
-    // Optionally break after receiving a certain number of events
-    if events.count >= 10 {
-        break
-    }
-}
-
-print("Received \(events.count) events")
 ```
 
 ### Custom Event Types
@@ -332,13 +188,13 @@ do {
 } catch RestfulError.invalidURL(let url) {
     print("Invalid URL: \(url)")
     
-} catch RestfulError.httpError(let statusCode, let data) {
+} catch let RestfulError.httpError(statusCode, data) {
     print("HTTP error \(statusCode)")
     if let errorMessage = String(data: data, encoding: .utf8) {
         print("Server message: \(errorMessage)")
     }
     
-} catch RestfulError.httpErrorJSON(let statusCode, let errorData) {
+} catch let RestfulError.httpErrorJSON(statusCode, errorData) {
     print("HTTP error \(statusCode)")
     if let message = errorData["message"]?.stringValue {
         print("Error message: \(message)")
