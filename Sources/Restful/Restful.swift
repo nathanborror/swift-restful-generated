@@ -1,6 +1,28 @@
 import Foundation
 import JSONSchema
 
+/// Represents a server-sent event
+public struct ServerSentEvent {
+    /// The event data
+    public let data: String
+
+    /// The event type (optional)
+    public let event: String?
+
+    /// The event ID (optional)
+    public let id: String?
+
+    /// The retry interval in milliseconds (optional)
+    public let retry: Int?
+
+    public init(data: String, event: String? = nil, id: String? = nil, retry: Int? = nil) {
+        self.data = data
+        self.event = event
+        self.id = id
+        self.retry = retry
+    }
+}
+
 /// A session for making RESTful API requests
 public class RestfulSession {
     private let urlSession: URLSession
@@ -80,6 +102,173 @@ public class RestfulSession {
             return json
         } catch {
             throw RestfulError.decodingError(error)
+        }
+    }
+
+    /// Stream server-sent events from an endpoint
+    /// - Parameters:
+    ///   - url: The URL string for the request
+    ///   - method: The HTTP method (GET, POST, etc.)
+    ///   - body: Optional request body as a dictionary
+    ///   - headers: Optional HTTP headers as a dictionary
+    /// - Returns: An async stream of ServerSentEvent values
+    /// - Throws: RestfulError if the request fails
+    public func stream(
+        url urlString: String,
+        method: String = "GET",
+        body: [String: JSONValue]? = nil,
+        headers: [String: String]? = nil
+    ) -> AsyncThrowingStream<ServerSentEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let urlSession = self.urlSession
+            Task {
+                do {
+                    // Create URL
+                    guard let url = URL(string: urlString) else {
+                        continuation.finish(throwing: RestfulError.invalidURL(urlString))
+                        return
+                    }
+
+                    // Create request
+                    var request = URLRequest(url: url)
+                    request.httpMethod = method
+
+                    // Set headers
+                    var allHeaders = headers ?? [:]
+                    // Add Accept header for SSE if not already set
+                    if allHeaders["Accept"] == nil {
+                        allHeaders["Accept"] = "text/event-stream"
+                    }
+                    // Add Cache-Control if not already set
+                    if allHeaders["Cache-Control"] == nil {
+                        allHeaders["Cache-Control"] = "no-cache"
+                    }
+
+                    for (key, value) in allHeaders {
+                        request.setValue(value, forHTTPHeaderField: key)
+                    }
+
+                    // Set body if provided
+                    if let body = body {
+                        do {
+                            let encoder = JSONEncoder()
+                            request.httpBody = try encoder.encode(body)
+                            if request.value(forHTTPHeaderField: "Content-Type") == nil {
+                                request.setValue(
+                                    "application/json", forHTTPHeaderField: "Content-Type")
+                            }
+                        } catch {
+                            continuation.finish(throwing: RestfulError.invalidBody(error))
+                            return
+                        }
+                    }
+
+                    // Perform streaming request
+                    let (bytes, response) = try await urlSession.bytes(for: request)
+
+                    // Check HTTP status code
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        continuation.finish(throwing: RestfulError.invalidResponse)
+                        return
+                    }
+
+                    guard (200...299).contains(httpResponse.statusCode) else {
+                        continuation.finish(
+                            throwing: RestfulError.httpError(
+                                statusCode: httpResponse.statusCode,
+                                data: Data()
+                            ))
+                        return
+                    }
+
+                    // Parse SSE stream
+                    var buffer = ""
+                    var eventData = ""
+                    var eventType: String? = nil
+                    var eventId: String? = nil
+                    var eventRetry: Int? = nil
+
+                    for try await byte in bytes {
+                        let character = String(UnicodeScalar(byte))
+                        buffer.append(character)
+
+                        // Check for line ending
+                        if buffer.hasSuffix("\n") {
+                            let line = buffer.trimmingCharacters(in: .newlines)
+                            buffer = ""
+
+                            // Empty line signals end of event
+                            if line.isEmpty {
+                                if !eventData.isEmpty {
+                                    let event = ServerSentEvent(
+                                        data: eventData,
+                                        event: eventType,
+                                        id: eventId,
+                                        retry: eventRetry
+                                    )
+                                    continuation.yield(event)
+
+                                    // Reset for next event
+                                    eventData = ""
+                                    eventType = nil
+                                    eventId = nil
+                                    eventRetry = nil
+                                }
+                                continue
+                            }
+
+                            // Parse SSE field
+                            if line.hasPrefix(":") {
+                                // Comment line, ignore
+                                continue
+                            }
+
+                            if let colonIndex = line.firstIndex(of: ":") {
+                                let field = String(line[..<colonIndex])
+                                var value = String(line[line.index(after: colonIndex)...])
+
+                                // Remove leading space after colon if present
+                                if value.hasPrefix(" ") {
+                                    value.removeFirst()
+                                }
+
+                                switch field {
+                                case "data":
+                                    if !eventData.isEmpty {
+                                        eventData.append("\n")
+                                    }
+                                    eventData.append(value)
+                                case "event":
+                                    eventType = value
+                                case "id":
+                                    eventId = value
+                                case "retry":
+                                    eventRetry = Int(value)
+                                default:
+                                    // Unknown field, ignore
+                                    break
+                                }
+                            }
+                        }
+                    }
+
+                    // Handle any remaining data
+                    if !eventData.isEmpty {
+                        let event = ServerSentEvent(
+                            data: eventData,
+                            event: eventType,
+                            id: eventId,
+                            retry: eventRetry
+                        )
+                        continuation.yield(event)
+                    }
+
+                    continuation.finish()
+
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
         }
     }
 }

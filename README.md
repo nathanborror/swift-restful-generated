@@ -7,6 +7,7 @@ An API agnostic, lightweight Swift library for making RESTful HTTP requests with
 - ✅ Simple and intuitive API
 - ✅ Support for all HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.)
 - ✅ Async/await support
+- ✅ Server-sent events (SSE) streaming support
 - ✅ Automatic JSON serialization/deserialization using `JSONValue`
 - ✅ Type-safe JSON handling with the JSONSchema library
 - ✅ Key-path traversal for easy nested value access
@@ -180,6 +181,139 @@ let response = try await session.request(
         "Authorization": "Bearer YOUR_TOKEN"
     ]
 )
+```
+
+### Streaming with Server-Sent Events (SSE)
+
+Server-sent events allow you to receive real-time updates from the server as they happen. This is perfect for streaming APIs like chat completions.
+
+```swift
+let session = RestfulSession()
+
+let stream = session.stream(
+    url: "https://api.openai.com/v1/chat/completions",
+    method: "POST",
+    body: [
+        "model": "gpt-4",
+        "messages": JSONValue.array([
+            JSONValue.object(["role": "user", "content": "Tell me a story"])
+        ]),
+        "stream": true
+    ],
+    headers: [
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    ]
+)
+
+for try await event in stream {
+    // Each event contains the streamed data
+    print("Received:", event.data)
+    
+    // Events can have optional metadata
+    if let eventType = event.event {
+        print("Event type:", eventType)
+    }
+    
+    if let eventId = event.id {
+        print("Event ID:", eventId)
+    }
+}
+```
+
+### Processing Streaming JSON Data
+
+When streaming JSON data (like from OpenAI's API), you'll typically receive JSON strings in the event data that need to be parsed:
+
+```swift
+import JSONSchema
+
+let session = RestfulSession()
+
+let stream = session.stream(
+    url: "https://api.openai.com/v1/chat/completions",
+    method: "POST",
+    body: [
+        "model": "gpt-4",
+        "messages": JSONValue.array([
+            JSONValue.object(["role": "user", "content": "Write a poem"])
+        ]),
+        "stream": true
+    ],
+    headers: [
+        "Authorization": "Bearer YOUR_API_KEY"
+    ]
+)
+
+var fullResponse = ""
+
+for try await event in stream {
+    // Skip special "[DONE]" marker
+    if event.data == "[DONE]" {
+        break
+    }
+    
+    // Parse JSON from event data
+    if let jsonData = event.data.data(using: .utf8),
+       let decoded = try? JSONDecoder().decode([String: JSONValue].self, from: jsonData),
+       let content = decoded[keyPath: "choices.0.delta.content"]?.stringValue {
+        fullResponse += content
+        print(content, terminator: "")
+    }
+}
+
+print("\n\nComplete response:", fullResponse)
+```
+
+### Collecting All Streaming Events
+
+You can collect all events from a stream into an array:
+
+```swift
+let session = RestfulSession()
+
+let stream = session.stream(
+    url: "https://api.example.com/events",
+    method: "GET"
+)
+
+var events: [ServerSentEvent] = []
+
+for try await event in stream {
+    events.append(event)
+    
+    // Optionally break after receiving a certain number of events
+    if events.count >= 10 {
+        break
+    }
+}
+
+print("Received \(events.count) events")
+```
+
+### Custom Event Types
+
+SSE supports custom event types. You can filter or handle events differently based on their type:
+
+```swift
+let stream = session.stream(
+    url: "https://api.example.com/notifications",
+    method: "GET",
+    headers: ["Authorization": "Bearer TOKEN"]
+)
+
+for try await event in stream {
+    switch event.event {
+    case "message":
+        print("Message:", event.data)
+    case "alert":
+        print("Alert:", event.data)
+    case "update":
+        print("Update:", event.data)
+    default:
+        print("Unknown event:", event.data)
+    }
+}
 ```
 
 ## Error Handling
@@ -424,7 +558,7 @@ if let theme = response[keyPath: "user.profile.settings.theme"]?.stringValue {
 
 ### RestfulSession
 
-The main class for making HTTP requests.
+The main class for making HTTP requests and streaming server-sent events.
 
 #### Initializer
 
@@ -435,6 +569,8 @@ init(urlSession: URLSession = .shared)
 Creates a new `RestfulSession` with an optional custom `URLSession`.
 
 #### Methods
+
+##### request
 
 ```swift
 func request(
@@ -456,6 +592,50 @@ Makes an HTTP request and returns the JSON response as a dictionary.
 **Returns:** The response as a dictionary `[String: JSONValue]`
 
 **Throws:** `RestfulError` if the request fails
+
+##### stream
+
+```swift
+func stream(
+    url: String,
+    method: String = "GET",
+    body: [String: JSONValue]? = nil,
+    headers: [String: String]? = nil
+) -> AsyncThrowingStream<ServerSentEvent, Error>
+```
+
+Streams server-sent events from an endpoint.
+
+**Parameters:**
+- `url`: The URL string for the request
+- `method`: The HTTP method (GET, POST, etc.). Defaults to "GET"
+- `body`: Optional request body as a dictionary (will be serialized to JSON)
+- `headers`: Optional HTTP headers as a dictionary
+
+**Returns:** An async stream of `ServerSentEvent` values
+
+**Note:** This method automatically sets `Accept: text/event-stream` and `Cache-Control: no-cache` headers if not already provided.
+
+### ServerSentEvent
+
+Represents a single server-sent event.
+
+#### Properties
+
+```swift
+let data: String        // The event data
+let event: String?      // The event type (optional)
+let id: String?         // The event ID (optional)
+let retry: Int?         // The retry interval in milliseconds (optional)
+```
+
+#### Initializer
+
+```swift
+init(data: String, event: String? = nil, id: String? = nil, retry: Int? = nil)
+```
+
+Creates a new server-sent event with the specified data and optional metadata.
 
 ## Contributing
 
