@@ -255,13 +255,13 @@ let response = try await session.request(
     url: "https://api.example.com/orders",
     method: "POST",
     body: [
-        "customer": JSONValue.object([
+        "customer": .object([
             "name": "John Doe",
             "email": "john@example.com",
         ]),
-        "items": JSONValue.array([
-            JSONValue.object(["product": "Widget", "quantity": 2]),
-            JSONValue.object(["product": "Gadget", "quantity": 1]),
+        "items": .array([
+            .object(["product": "Widget", "quantity": 2]),
+            .object(["product": "Gadget", "quantity": 1]),
         ]),
         "total": 99.99,
         "currency": "USD"
@@ -272,93 +272,9 @@ let response = try await session.request(
 )
 ```
 
-### Multiple Sequential Requests
-
-```swift
-let session = RestfulSession()
-
-// First request
-let user = try await session.request(
-    url: "https://api.example.com/users/1",
-    method: "GET"
-)
-
-// Second request using data from first
-if let userId = user["id"]?.intValue {
-    let posts = try await session.request(
-        url: "https://api.example.com/users/\(userId)/posts",
-        method: "GET"
-    )
-    print("User posts:", posts)
-}
-```
-
 ## Working with JSONValue
 
 This library uses the `JSONValue` type from the [JSONSchema](https://github.com/mattt/JSONSchema) library to represent JSON data. This provides type-safe handling of JSON values.
-
-### Creating JSON Values
-
-`JSONValue` conforms to literal protocols, so you can use Swift literals directly:
-
-```swift
-let body: [String: JSONValue] = [
-    "name": "John Doe",        // String literal
-    "age": 30,                  // Integer literal
-    "active": true,             // Boolean literal
-    "score": 98.5              // Double literal
-]
-```
-
-For nested structures, use explicit constructors:
-
-```swift
-let body: [String: JSONValue] = [
-    "user": JSONValue.object([
-        "name": "John Doe",
-        "email": "john@example.com"
-    ]),
-    "tags": JSONValue.array(["swift", "api", "rest"])
-]
-```
-
-### Accessing JSON Values
-
-Use the type-specific properties to extract values:
-
-```swift
-let response = try await session.request(url: "...", method: "GET")
-
-// Access string values
-if let name = response["name"]?.stringValue {
-    print("Name: \(name)")
-}
-
-// Access integer values
-if let age = response["age"]?.intValue {
-    print("Age: \(age)")
-}
-
-// Access boolean values
-if let active = response["active"]?.boolValue {
-    print("Active: \(active)")
-}
-
-// Access double values
-if let score = response["score"]?.doubleValue {
-    print("Score: \(score)")
-}
-
-// Access arrays
-if let items = response["items"]?.arrayValue {
-    print("Found \(items.count) items")
-}
-
-// Access nested objects
-if let user = response["user"]?.objectValue {
-    print("User name: \(user["name"]?.stringValue ?? "Unknown")")
-}
-```
 
 ### Key-Path Traversal
 
@@ -392,111 +308,3 @@ if let theme = response[keyPath: "user.profile.settings.theme"]?.stringValue {
     print("Theme: \(theme)")
 }
 ```
-
-This is much simpler than chaining optional access:
-
-```swift
-// Without key-path (verbose)
-if let user = response["user"]?.objectValue,
-   let profile = user["profile"]?.objectValue,
-   let settings = profile["settings"]?.objectValue,
-   let theme = settings["theme"]?.stringValue {
-    print("Theme: \(theme)")
-}
-
-// With key-path (concise)
-if let theme = response[keyPath: "user.profile.settings.theme"]?.stringValue {
-    print("Theme: \(theme)")
-}
-```
-
-## API Reference
-
-### RestfulSession
-
-The main class for making HTTP requests and streaming server-sent events.
-
-#### Initializer
-
-```swift
-init(urlSession: URLSession = .shared)
-```
-
-Creates a new `RestfulSession` with an optional custom `URLSession`.
-
-#### Methods
-
-##### request
-
-```swift
-func request(
-    url: String,
-    method: String,
-    body: [String: JSONValue]? = nil,
-    headers: [String: String]? = nil
-) async throws -> [String: JSONValue]
-```
-
-Makes an HTTP request and returns the JSON response as a dictionary.
-
-**Parameters:**
-- `url`: The URL string for the request
-- `method`: The HTTP method (GET, POST, PUT, DELETE, PATCH, etc.)
-- `body`: Optional request body as a dictionary (will be serialized to JSON)
-- `headers`: Optional HTTP headers as a dictionary
-
-**Returns:** The response as a dictionary `[String: JSONValue]`
-
-**Throws:** `RestfulError` if the request fails
-
-##### stream
-
-```swift
-func stream(
-    url: String,
-    method: String = "GET",
-    body: [String: JSONValue]? = nil,
-    headers: [String: String]? = nil
-) -> AsyncThrowingStream<ServerSentEvent, Error>
-```
-
-Streams server-sent events from an endpoint.
-
-**Parameters:**
-- `url`: The URL string for the request
-- `method`: The HTTP method (GET, POST, etc.). Defaults to "GET"
-- `body`: Optional request body as a dictionary (will be serialized to JSON)
-- `headers`: Optional HTTP headers as a dictionary
-
-**Returns:** An async stream of `ServerSentEvent` values
-
-**Note:** This method automatically sets `Accept: text/event-stream` and `Cache-Control: no-cache` headers if not already provided.
-
-### ServerSentEvent
-
-Represents a single server-sent event.
-
-#### Properties
-
-```swift
-let data: String        // The event data
-let event: String?      // The event type (optional)
-let id: String?         // The event ID (optional)
-let retry: Int?         // The retry interval in milliseconds (optional)
-```
-
-#### Initializer
-
-```swift
-init(data: String, event: String? = nil, id: String? = nil, retry: Int? = nil)
-```
-
-Creates a new server-sent event with the specified data and optional metadata.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is available under the MIT license.
