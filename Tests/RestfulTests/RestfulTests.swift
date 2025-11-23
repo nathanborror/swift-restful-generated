@@ -162,6 +162,68 @@ struct RestfulAnthropicTests {
     }
 }
 
+private let GOOGLE_API_KEY: String? = ProcessInfo.processInfo.environment["GOOGLE_API_KEY"]
+
+@Suite("Google Gemini Tests", .enabled(if: GOOGLE_API_KEY?.isEmpty == false))
+struct RestfulGoogleTests {
+
+    @Test("Basic response")
+    func basicResponse() async throws {
+        let session = RestfulSession()
+        let response = try await session.request(
+            url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            method: "POST",
+            body: [
+                "contents": .array([
+                    .object([
+                        "parts": .array([
+                            .object([
+                                "text": "Hi"
+                            ])
+                        ])
+                    ])
+                ])
+            ],
+            headers: [
+                "x-goog-api-key": GOOGLE_API_KEY!,
+                "Content-Type": "application/json",
+            ]
+        )
+        #expect(response[keyPath: "candidates.0.content.parts.0.text"]?.stringValue != "")
+    }
+
+    @Test("Basic streaming response")
+    func basicStreamingResponse() async throws {
+        let session = RestfulSession()
+        let stream = session.stream(
+            url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse",
+            method: "POST",
+            body: [
+                "contents": .array([
+                    .object([
+                        "parts": .array([
+                            .object([
+                                "text": "Hi"
+                            ])
+                        ])
+                    ])
+                ])
+            ],
+            headers: [
+                "x-goog-api-key": GOOGLE_API_KEY!,
+                "Content-Type": "application/json",
+            ],
+            linebreaks: "\r\n"
+        )
+
+        for try await event in stream {
+            if let jsonData = event.data.data(using: .utf8), let response = try? JSONDecoder().decode([String: JSONValue].self, from: jsonData) {
+                #expect(response[keyPath: "candidates.0.content.parts.0.text"]?.stringValue != "")
+            }
+        }
+    }
+}
+
 @Suite("RestfulError Tests")
 struct RestfulErrorTests {
 

@@ -117,7 +117,8 @@ public class RestfulSession {
         url urlString: String,
         method: String = "GET",
         body: [String: JSONValue]? = nil,
-        headers: [String: String]? = nil
+        headers: [String: String]? = nil,
+        linebreaks: String = "\n"
     ) -> AsyncThrowingStream<ServerSentEvent, Error> {
         AsyncThrowingStream { continuation in
             let urlSession = self.urlSession
@@ -193,7 +194,7 @@ public class RestfulSession {
                         buffer.append(character)
 
                         // Check for line ending
-                        if buffer.hasSuffix("\n") {
+                        if buffer.hasSuffix(linebreaks) {
                             let line = buffer.trimmingCharacters(in: .newlines)
                             buffer = ""
 
